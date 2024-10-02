@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import SerialNumberSerializer
 from .models import SerialNumber
+from django.db import IntegrityError
 
 class SerialNumberAPIView(APIView):
     def post(self, request):
@@ -13,17 +14,22 @@ class SerialNumberAPIView(APIView):
             results = []
 
             for sn in serial_numbers:
-                if sn.startswith(('BN', 'MZ', 'AD')) and len(sn) <= 10:
-                    # Проверка на уникальность
-                    if not SerialNumber.objects.filter(serial_number=sn).exists():
+                if sn.startswith(('BN', 'MZ', 'AD')) and len(sn) == 10:
+                    try:
                         # Сохранение валидного серийного номера в базу данных
                         SerialNumber.objects.create(serial_number=sn)
-
-                    results.append({
-                        "serialNumber": sn,
-                        "success": True,
-                        "message": "SUCCESS"
-                    })
+                        results.append({
+                            "serialNumber": sn,
+                            "success": True,
+                            "message": "SUCCESS"
+                        })
+                    except IntegrityError:
+                        # Серийный номер уже существует
+                        results.append({
+                            "serialNumber": sn,
+                            "success": False,
+                            "message": f"Serial number {sn} already exists"
+                        })
                 else:
                     results.append({
                         "serialNumber": sn,
@@ -40,5 +46,6 @@ class SerialNumberAPIView(APIView):
     def get(self, request):
         # Получение всех серийных номеров из базы данных
         all_serial_numbers = SerialNumber.objects.all()
-        serialized_data = [{"serial_number": sn.serial_number} for sn in all_serial_numbers]
+        serialized_data = [{"serialNumber": sn.serial_number} for sn in all_serial_numbers]
         return Response(serialized_data, status=status.HTTP_200_OK)
+
